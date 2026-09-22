@@ -10,12 +10,12 @@ if __name__ == "__main__":
 
 	agents_dict = {
 		'AUSTRIA': StaticAgent(), 
-		'ENGLAND': StaticAgent(), 
+		'ENGLAND': StudentAgent(), 
 		'FRANCE': StaticAgent(), 
-		'GERMANY': StudentAgent(), 
+		'GERMANY': StaticAgent(), 
 		'ITALY': StaticAgent(), 
 		'RUSSIA': StaticAgent(), 
-		'TURKEY': GreedyAgent()
+		'TURKEY': StaticAgent()
 	}
 
 	run_one_game(agents_dict, save_file='game_for_vis.json')

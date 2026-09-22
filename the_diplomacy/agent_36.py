@@ -27,7 +27,7 @@ class StudentAgent(Agent):
     You can add/override attributes and methods as needed.
     '''
     #random funcs
-    def get_unit_neighbors(self, loc):
+    def get_loc_neighbors(self, loc): #quick note: this is building a graph regardless of unit type, is causing bugs down there will work on this later
         neighbors = set()
         loc_upper = loc.upper()
         if loc_upper in self.map_graph_army:
@@ -36,6 +36,25 @@ class StudentAgent(Agent):
             neighbors.update(self.map_graph_navy.neighbors(loc_upper))
         return neighbors
 
+    def get_units_neighbors(self, loc):
+        army = self.power.units
+        neighbors = set()
+        loc_upper = loc.upper()
+        type = ''
+        for units in army:
+            unit_type, unit_loc = units.split(' ')
+            if unit_loc == loc_upper:
+                type = unit_type
+                break
+        if type == 'F':
+            if loc_upper in self.map_graph_navy:
+                neighbors.update(self.map_graph_navy.neighbors(loc_upper))
+        else:
+            if loc_upper in self.map_graph_army:
+                neighbors.update(self.map_graph_army.neighbors(loc_upper))
+        return neighbors
+
+    
     def get_target(self, str): #just a func to get the target loc of a move 
         move = str.split(' ')
         if '-' in move:
@@ -69,6 +88,41 @@ class StudentAgent(Agent):
         self.greedy_opp_agent.map_graph_army = self.map_graph_army
         self.greedy_opp_agent.map_graph_navy = self.map_graph_navy
         
+    def evaluate_pairs(self, game_state, pairs_list, pairs_num):
+        game_map = game_state.map
+        my_scs = set(game_state.get_centers(self.power_name))
+        enemy_scs = set(game_map.scs) - my_scs
+        influence = set(self.power.influence)
+        my_units = set(game_state.get_orderable_locations(self.power_name))
+        enemy_powers = [p for p in game_state.get_map_power_names() if p != self.power_name]
+        enemy_unit_locs = set()
+        for opp in enemy_powers:
+            enemy_unit_locs.update(game_state.get_orderable_locations(opp))
+
+        all_units_locs = my_units | enemy_unit_locs
+        unoccupied_scs = enemy_scs - all_units_locs
+
+
+        scored_pairs = []
+        for pairs in pairs_list:
+            pair_score = 0.0
+            if pairs[0] in self.get_loc_neighbors(pairs[1]):
+                pair_score += -50.0
+            if pairs[0] in influence or pairs[1] in influence:
+                pair_score += -100.0
+            pair_score += len(self.get_loc_neighbors(pairs[0]) & my_units) * 20
+            pair_score += len(self.get_loc_neighbors(pairs[1]) & my_units) * 20
+            if pairs[0] in unoccupied_scs:
+                pair_score += 100
+            if pairs[0] in enemy_scs:
+                pair_score += 20
+            if pairs[1] in unoccupied_scs:
+                pair_score += 100
+            if pairs[1] in enemy_scs:
+                pair_score += 20
+            scored_pairs.append((pair_score, pairs))
+        scored_pairs.sort(key =lambda x: x[0], reverse= True)
+        return [pair for (pair_score, pair) in scored_pairs[:pairs_num]]
 
     def evaluate(self, game_state):    #heuristic? to evaluate board positions
         game_map = game_state.map    
@@ -88,90 +142,161 @@ class StudentAgent(Agent):
         unoccupied_scs = enemy_scs - all_units_locs
 
         # 1. Base SC Score
-        scs_score = len(my_scs) * 100.0
+        scs_score = len(my_scs) * 1000.0
 
         # 2. Fast Offensive SC Pressure
         scs_pressure_score = 0
         for loc in my_units:
-            adj_locs = self.get_unit_neighbors(loc)
+            adj_locs = self.get_units_neighbors(loc)
             empty_scs_num = len(adj_locs & unoccupied_scs)
-            scs_pressure_score += (empty_scs_num * 30.0)
+            scs_pressure_score += (empty_scs_num * 100.0)
 
             defended_scs_num = len(adj_locs & (enemy_scs & enemy_unit_locs))
-            scs_pressure_score += (defended_scs_num * 20.0) 
+            scs_pressure_score += (defended_scs_num * 50.0) 
 
         # 3. Mutual Unit Support Range
         mutual_support_score = 0
         for loc in my_units:
-            adj_locs = self.get_unit_neighbors(loc)
-            if adj_locs & my_units:
-                mutual_support_score += 2.0
+            adj_locs = self.get_units_neighbors(loc)
+            mutual_support_score += 20.0 * (len(adj_locs & my_units))
 
         # 4. Threat Penalty (Enemy units adjacent to our SCs)
         threat_penalty = 0.0
         for sc in my_scs:
-            sc_adj = self.get_unit_neighbors(sc)
+            sc_adj = self.get_loc_neighbors(sc)
             threat_count = len(sc_adj & enemy_unit_locs)
             threat_penalty += (threat_count * 20.0)
 
         return scs_score + scs_pressure_score + mutual_support_score - threat_penalty
     
-    def focus_target(self, game_state, target_loc): #refer to docs. focus all troops on a particular province
+    def focus_target(self, game_state, mult_target_loc): #refer to docs. focus all troops on 2 provinces
         possible_orders = game_state.get_all_possible_orders()
         orderable_locs = game_state.get_orderable_locations(self.power_name)
+        game_map = game_state.map    
+        my_scs = set(game_state.get_centers(self.power_name))
+        enemy_scs = set(game_map.scs) - my_scs
+        my_units = set(game_state.get_orderable_locations(self.power_name))
+
+        #enemy unit locations
+        enemy_powers = [p for p in game_state.get_map_power_names() if p != self.power_name]
+        enemy_unit_locs = set()
+        for opp in enemy_powers:
+            enemy_unit_locs.update(game_state.get_orderable_locations(opp))
+        all_units_locs = my_units | enemy_unit_locs
+        unoccupied_scs = enemy_scs - all_units_locs
 
         if not orderable_locs:
             return []
 
         final_orders = []
         assigned_units = set() #use set to avoid duplicates
-        target_loc = target_loc.split('/')[0]
+        mult_target_loc = [target.split('/')[0] for target in mult_target_loc]
         #case: defend; if target is alr occupied by friendly troop
-        if target_loc in orderable_locs:
-            hold_order = [o for o in possible_orders[target_loc] if ' H' in o][0]
-            final_orders.append(hold_order)
-            assigned_units.add(target_loc)
+        for target_loc in mult_target_loc:
+            # if target_loc in orderable_locs and target_loc not in assigned_units:
+            #     hold_order = [o for o in possible_orders[target_loc] if ' H' in o][0]
+            #     final_orders.append(hold_order)
+            #     assigned_units.add(target_loc)
 
-            for loc in orderable_locs:
-                if loc not in assigned_units:
-                    for order in possible_orders.get(loc, []):
-                        if ' S ' in order and order.endswith(f' {target_loc}'):
-                            final_orders.append(order)
-                            assigned_units.add(loc)
-                            break
+            #     for loc in orderable_locs:
+            #         if loc not in assigned_units:
+            #             for order in possible_orders.get(loc, []):
+            #                 if ' S ' in order and order.endswith(f' {target_loc}'):
+            #                     final_orders.append(order)
+            #                     assigned_units.add(loc)
+            #                     break
 
-        #case: attack
-        else:
-            attackers = []
-            for loc in orderable_locs:
-                for order in possible_orders.get(loc, []):
-                    if self.get_target(order) == target_loc and ' S ' not in order and ' C ' not in order and 'VIA' not in order:
-                        attackers.append((loc, order))
-            #select a primary attacker
-            #FUCK WHY IS THIS ATTACKER LIST ALWAYS EMPTY SOME1 PLS FUCKING HELP ITS 2AM
-            if attackers:
-                primary_loc, primary_order = random.choice(attackers)
-                final_orders.append(primary_order)
-                assigned_units.add(primary_loc)
-                print(primary_loc, primary_order)
-                #adjacent units supporting primary attacker
+            #case: attack
+            #else:
+                attackers = []
+                is_convoy = False
                 for loc in orderable_locs:
                     if loc not in assigned_units:
                         for order in possible_orders.get(loc, []):
-                            if ' S ' in order and order.endswith(f' {primary_order}'):
+                            if self.get_target(order) == target_loc and ' S ' not in order and ' C ' not in order:
+                                attackers.append((loc, order))
+                #select a primary attacker
+                #FUCK WHY IS THIS ATTACKER LIST ALWAYS EMPTY SOME1 PLS FUCKING HELP ITS 2AM oh shit it took me a day i got it now
+                if attackers:
+                    convoy_attacks = [a for a in attackers if 'VIA' in a[1]]            
+                    normal_attacks = [a for a in attackers if 'VIA' not in a[1]]
+                    if convoy_attacks: #always prio convoy attacks
+                        primary_loc, primary_order = random.choice(convoy_attacks)
+                        is_convoy = True
+                    else:    
+                        primary_loc, primary_order = random.choice(normal_attacks)
+
+                    final_orders.append(primary_order)
+                    assigned_units.add(primary_loc)
+
+                    core_order = primary_order.replace(' VIA', '') if is_convoy else primary_order #in case the attack is via convoy -> strip the convoy part since the format for moves supporting convoy doesnt have via
+                    #adjacent units supporting/convoying primary attacker
+                    for loc in orderable_locs:
+                        if loc not in assigned_units:
+                            convoy_order = []
+                            sp_order = []
+                            for order in possible_orders.get(loc, []): #look thru all orders to find convoy orders
+                                if is_convoy and ' C ' in order and order.endswith(f' {core_order}'):
+                                        convoy_order.append(order)
+                                        break
+                                elif ' S ' in order and order.endswith(f' {core_order}'):
+                                        sp_order.append(order)
+                            if convoy_order: #prio convoy order, if attacking via convoy ALL FLEET AVAIL MUST CONVOY
+                                final_orders.append(convoy_order[0])
+                                assigned_units.add(loc)
+                            elif sp_order: #otherwise sp the convoy
+                                final_orders.append(sp_order[0])
+                                assigned_units.add(loc)
+                            
+
+        #case: hold; for the moment, all remaining troops just hold lol im losing my sanity
+        #now will move to nearby unoccupied scs, then neighboring tile to target
+        common_target = set()
+        for loc in orderable_locs:
+            if loc not in assigned_units:
+                loc_neighbors = self.get_units_neighbors(loc)
+                target1_loc_neighbor = self.get_loc_neighbors(mult_target_loc[0])
+                target2_loc_neighbor = self.get_loc_neighbors(mult_target_loc[1])
+                scs_unoccupied_neighbors = loc_neighbors & unoccupied_scs
+                scs_occupied_neighbors = loc_neighbors & enemy_scs
+                target = []
+                primary_order = []
+                
+                if loc_neighbors & common_target:
+                    target.append(random.choice(list(loc_neighbors & common_target)))
+                    for order in final_orders:
+                        if ' S ' not in order and order.endswith(f' - {target[0]}'):
+                            primary_order.append(order)
+                            break
+                elif scs_unoccupied_neighbors:
+                    target.append(random.choice(list(scs_unoccupied_neighbors)))
+                elif scs_occupied_neighbors:
+                    target.append(random.choice(list(scs_occupied_neighbors)))
+                elif target1_loc_neighbor & loc_neighbors:
+                    target.append(random.choice(list(target1_loc_neighbor & loc_neighbors)))
+                elif target2_loc_neighbor & loc_neighbors:
+                    target.append(random.choice(list(target2_loc_neighbor & loc_neighbors)))                    
+
+                if target:
+                    common_target.add(target[0])
+                    if primary_order:
+                        for order in possible_orders.get(loc, []):
+                            if ' S ' in order and order.endswith(f' {primary_order[0]}'):
                                 final_orders.append(order)
                                 assigned_units.add(loc)
                                 break
+                    else:
+                        for order in possible_orders.get(loc, []):
+                            if self.get_target(order) == target[0]  and ' S ' not in order and ' C ' not in order and 'VIA' not in order:
+                                final_orders.append(order)
+                                assigned_units.add(loc)
+                                break
+                else:
+                    order = [o for o in possible_orders.get(loc, []) if o.endswith(' H')][0]
+                    final_orders.append(order)
+        return (final_orders, mult_target_loc)
 
-        #case: hold; for the moment, all remaining troops just hold lol im losing my sanity
-        for loc in orderable_locs:
-            if loc not in assigned_units:
-                order = [o for o in possible_orders.get(loc, []) if o.endswith(' H')][0]
-                final_orders.append(order)
-
-        return final_orders
-
-    def gen_candidate_target(self, game_state, num_targets=15): #generate random targets to focus. currently prioritising attacking and only defending scs
+    def gen_candidate_target(self, game_state, num_targets=20): #generate random targets to focus. currently prioritising attacking and only defending scs
         orderable_locs = game_state.get_orderable_locations(self.power_name)
         if not orderable_locs:
             return []
@@ -192,27 +317,28 @@ class StudentAgent(Agent):
         attack_pool = list(attack_targets)
         defense_pool = list(defense_targets)
         target_pool = list(reachable_targets)
-        candidate_targets = []
+        mult_attack_pool = [list(plan) for plan in itertools.combinations(attack_pool, 2)]
+        candidate_targets = self.evaluate_pairs(game_state, mult_attack_pool, num_targets)
 
         if not target_pool:
             return []
 
-        if len(attack_pool) < num_targets:
-            candidate_targets += attack_pool
-            for _ in range(num_targets * 3):
-                if defense_pool:
-                    target = random.choice(defense_pool)
-                    if target not in candidate_targets:
-                        candidate_targets.append(target)
-                        if len(candidate_targets) >= num_targets:
-                            break
-        else:
-            for _ in range(num_targets * 3):
-                target = random.choice(attack_pool)
-                if target not in candidate_targets:
-                    candidate_targets.append(target)
-                    if len(candidate_targets) >= num_targets:
-                        break
+        # if len(mult_attack_pool) < num_targets:
+        #     candidate_targets += mult_attack_pool
+        #     for _ in range(num_targets * 3):
+        #         if defense_pool:
+        #             target = [random.choice(attack_pool), random.choice(defense_pool)]
+        #             if target not in candidate_targets:
+        #                 candidate_targets.append(target)
+        #                 if len(candidate_targets) >= num_targets:
+        #                     break
+        # else:
+        #     for _ in range(num_targets * 3):
+        #         target = random.choice(mult_attack_pool)
+        #         if target not in candidate_targets:
+        #             candidate_targets.append(target)
+        #             if len(candidate_targets) >= num_targets:
+        #                 break
         return candidate_targets
 
     #NOTICE! CURRENTLY USING GREEDY BASELINE AGENT TO SIM OPPONENTS. NEED TO CHECK IF THIS IS ALLOWED        
@@ -223,16 +349,16 @@ class StudentAgent(Agent):
         
     
     #base mcts search, depth 1
-    def mcts_search(self, game_state, candidate_orders, sims_per_plan):
-        if not candidate_orders:
+    def mcts_search(self, game_state, candidate, sims_per_plan):
+        if not candidate:
             my_units = game_state.get_orderable_locations(self.power_name)
             possible_orders = game_state.get_all_possible_orders()
             return [possible_orders[loc][0] for loc in my_units if possible_orders.get(loc)]
 
-        plan_scores = {i: 0.0 for i in range(len(candidate_orders))}
+        plan_scores = {i: 0.0 for i in range(len(candidate))}
         opponent_powers = [p for p in game_state.get_map_power_names() if p != self.power_name]
 
-        for idx, my_orders in enumerate(candidate_orders):
+        for idx, (my_orders, target) in enumerate(candidate):
             for _ in range(sims_per_plan):
                 sim_game = game.copy_game(game_state)
                 orders = {self.power_name: my_orders}
@@ -241,8 +367,8 @@ class StudentAgent(Agent):
                     orders[opp] = self.get_action_greedyopp(sim_game, opp)
 
                 try:
-                    for p, orders in orders.items():
-                        sim_game.set_orders(p, orders)
+                    for p, o in orders.items():
+                        sim_game.set_orders(p, o)
                     sim_game.process()
                 except Exception:
                     continue
@@ -251,7 +377,9 @@ class StudentAgent(Agent):
                 plan_scores[idx] += score
 
         best_plan = max(plan_scores.keys(), key=lambda i: plan_scores[i])
-        return candidate_orders[best_plan]
+        final_orders, final_targets = candidate[best_plan]
+        #print(final_targets)
+        return final_orders
     
     #@timeout_decorator.timeout(1)
     def __init__(self, agent_name='im_horrible_at_giving_nicknames'):
@@ -263,6 +391,8 @@ class StudentAgent(Agent):
     def new_game(self, game, power_name):
         self.game = game
         self.power_name = power_name
+
+        self.power = game.get_power(self.power_name)
 
         self.build_map_graphs()
 
@@ -286,26 +416,33 @@ class StudentAgent(Agent):
             my_locs = self.game.get_orderable_locations(self.power_name)
         
             #2D list of choices per location
+            # if self.game.phase_type == 'A':
+            #     options_per_loc = [[order for order in possible_orders[loc] if order.startswith('A')] for loc in my_locs if possible_orders.get(loc)]
+            # else:
             options_per_loc = [possible_orders[loc] for loc in my_locs if possible_orders.get(loc)]
             if not options_per_loc:
                 return []
 
             #get combinations using itertools
-            candidate_orders = [list(plan) for plan in itertools.product(*options_per_loc)]
+            candidate_orders = [(list(plan), "empty") for plan in itertools.product(*options_per_loc)]
 
             #mcts and evaluate
-            print(time.perf_counter() - start_time, self.game.phase_type)
+            #print(time.perf_counter() - start_time, self.game.phase_type)
             return self.mcts_search(self.game, candidate_orders, sims_per_plan=1)
         else:
             candidate_targets = self.gen_candidate_target(self.game)
             candidate_orders = []
+            existing_orders = []
 
             for target in candidate_targets:
-                plan = self.focus_target(self.game, target)
-                if plan and plan not in candidate_orders:
-                    candidate_orders.append(plan)
+                (plan, intended_target) = self.focus_target(self.game, target)
+                
+                if plan and plan not in existing_orders:
+                    existing_orders.append(plan)
+                    candidate_orders.append((plan, intended_target))
 
-            print(time.perf_counter() - start_time, self.game.phase)
+            #print(time.perf_counter() - start_time, self.game.phase)
+            
             return self.mcts_search(self.game, candidate_orders, sims_per_plan=3)
 
         '''

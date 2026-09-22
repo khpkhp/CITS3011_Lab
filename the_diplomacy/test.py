@@ -37,7 +37,7 @@ def experiment(player_agent, opponent_agent_pool, repeat_nums=10):
                     else:
                         opponent_agent = random.choice(opponent_agent_pool)
                         agents_dict[p] = opponent_agent()
-                results, _ = run_one_game(agents_dict)
+                results, _ = run_one_game(agents_dict, save_file='game_for_vis.json')
                 scores, wins = scoring(results)
                 all_scores[i].append(scores[i])
                 all_scores['ALL'].append(scores[i])
@@ -66,7 +66,7 @@ def experiment(player_agent, opponent_agent_pool, repeat_nums=10):
 if __name__ == "__main__":
 
     print('Evaluating Scenario 1 ...')
-    experiment(player_agent=StudentAgent, opponent_agent_pool=[StaticAgent], repeat_nums=11)
+    experiment(player_agent=StudentAgent, opponent_agent_pool=[StaticAgent], repeat_nums=10)
 
-    #print('Evaluating Scenario 2 ...')
-    #experiment(player_agent=StudentAgent, opponent_agent_pool=[RandomAgent, AttitudeAgent, AttitudeAgent, GreedyAgent, GreedyAgent], repeat_nums=10)
+    print('Evaluating Scenario 2 ...')
+    experiment(player_agent=StudentAgent, opponent_agent_pool=[RandomAgent, AttitudeAgent, AttitudeAgent, GreedyAgent, GreedyAgent], repeat_nums=10)
