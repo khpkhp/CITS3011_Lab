@@ -1,0 +1,86 @@
+# ============================================================
+# CITS3011 Project — Group 36
+# Full Development Timeline (corrected)
+# ============================================================
+
+# ------------------------------------------------------------
+# PHASE 0 — STARTING POINT
+# ------------------------------------------------------------
+- original: random legal orders for every orderable location
+  -> 6.97 SCs, 0% wins
+
+# ------------------------------------------------------------
+# PHASE 1 — FINDING A BASE (BETA SERIES)
+# ------------------------------------------------------------
+- beta2: pure MCTS + random rollouts + SC evaluation
+  -> 7.74 SCs, 0% wins  (best in this phase)
+- beta3: added heuristic rollouts to beta2
+  -> 7.67 SCs, 0% wins  (worse)
+- beta4: added milestone evaluation to beta2
+  -> 7.47 SCs, 0% wins  (worse)
+- Decision: keep beta2 as the base
+
+# ------------------------------------------------------------
+# PHASE 2 — BETA 2 + 3 FEATURES (beta2_3s v1 -> v5)
+# ------------------------------------------------------------
+- beta2_3s (v1): beta2 + defence penalty + endgame bonus
+                 + weakest-target scoring
+- beta2_3s_v2 : added adaptive aggression via OpponentTracker
+                + balanced/aggressive weights
+- beta2_3s_v3 : switched to aggressive default + ThreatDetector
+                + endgame override at 14 SCs
+- beta2_3s_v4 : replaced weakest-target with coordinated attack
+                teams (2 attackers + 2 supporters)
+- beta2_3s_v5 : replaced coordinated attacks with greedy advance
+                + coordinated attack candidates
+- Conclusion: none clearly beat beta2 -> restart
+
+# ------------------------------------------------------------
+# PHASE 3 — NS SERIES (SEPARATE BRANCH)
+# ------------------------------------------------------------
+- NS_v1  : four focused candidates (weakest-target, greedy,
+           defensive, random) + sharper SCORE_TABLE + depth 2
+- NS_v2  : defensive candidate only used in balanced mode
+- NS_v3  : replaced weakest-target with multi-team coordinated
+           attacks (MAX_TEAMS, TEAM_SIZE)
+- NS_v4  : replaced multi-team with cost-aware teams (size by
+           defender count, cap 3)
+- NS_v5  : added restricted army scouts + error-safety wrappers
+           (_safe_fallback)
+- NS_v5.5: P2_beta1_v1 baseline + centre weighting for
+           map-central powers
+           -> 9.57 SCs, 2.86% wins
+              (first non-zero win rate)
+- Conclusion: significant jump; keeps "3 feature" stack
+
+# ------------------------------------------------------------
+# PHASE 4 — P2 BETA1 SERIES
+# ------------------------------------------------------------
+- P2_beta1_v1: NS_v5.5 baseline + centre weighting
+- P2_beta1_v2: capped MAX_DEFENDERS_TO_ATTACK at 2
+               + centre weighting
+               -> 9.37 SCs, 0% wins
+- Conclusion: strong candidate base, but lower than NS_v5.5
+
+# ------------------------------------------------------------
+# PHASE 5 — BASE REFINEMENT (base v1 -> v1.4)
+# ------------------------------------------------------------
+- base_v1        : stripped all special features -> pure MCTS
+                   + sharper SCORE_TABLE + depth 2
+- base_v1.2      : added adaptive rollout depth (1 -> 3 at 9 SCs)
+                   + tuned EXPLORATION_C to 1.2
+                   -> 9.0 SCs, 0% wins
+- base_v1.3_extreme: added wall-clock + mixed rollout
+                   + candidate mix + adaptive C + tree reuse
+                   + deeper endgame, all at once
+                   -> CRASH
+- base_v1.3_safe : kept the four axes, removed tree reuse,
+                   added order sanitiser + phase guard
+                   -> 9.54 SCs, 0% wins  (best pure base)
+- base_v1.4      : v1.3_safe + deeper endgame rollouts
+                   + terminal bonus + year-scaled depth
+                   + domination pruning
+                   -> 9.03 SCs, 0% wins  (worse)
+- Decision: v1.3_safe is the best pure base
+
+#Conclusion: in test NS5.5 win but that's its limit, while baseV1.3 still have 3 feature space to improve itself
