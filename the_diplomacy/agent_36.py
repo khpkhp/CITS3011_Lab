@@ -15,7 +15,7 @@ WINDOWS COMPATIBILITY NOTE:
     the one-second limit: it is a hard constraint and will be enforced
     independently during marking.
 '''
-from agent_baselines import Agent, GreedyAgent
+from agent_baselines import Agent, GreedyAgent, StaticAgent
 
 
 class StudentAgent(Agent):
@@ -145,16 +145,15 @@ class StudentAgent(Agent):
             attackers = []
             for loc in orderable_locs:
                 for order in possible_orders.get(loc, []):
-                    if self.get_target(order) == target_loc and ' S ' not in order and ' C ' not in order:
+                    if self.get_target(order) == target_loc and ' S ' not in order and ' C ' not in order and 'VIA' not in order:
                         attackers.append((loc, order))
-            print(target_loc, attackers)
             #select a primary attacker
             #FUCK WHY IS THIS ATTACKER LIST ALWAYS EMPTY SOME1 PLS FUCKING HELP ITS 2AM
             if attackers:
                 primary_loc, primary_order = random.choice(attackers)
                 final_orders.append(primary_order)
                 assigned_units.add(primary_loc)
-
+                print(primary_loc, primary_order)
                 #adjacent units supporting primary attacker
                 for loc in orderable_locs:
                     if loc not in assigned_units:
@@ -167,7 +166,7 @@ class StudentAgent(Agent):
         #case: hold; for the moment, all remaining troops just hold lol im losing my sanity
         for loc in orderable_locs:
             if loc not in assigned_units:
-                order = [o for o in possible_orders.get(loc, []) if ' H' in o][0]
+                order = [o for o in possible_orders.get(loc, []) if o.endswith(' H')][0]
                 final_orders.append(order)
 
         return final_orders
@@ -221,7 +220,8 @@ class StudentAgent(Agent):
         self.greedy_opp_agent.game = game_state
         self.greedy_opp_agent.power_name = opp_power
         return self.greedy_opp_agent.get_actions()
-
+        
+    
     #base mcts search, depth 1
     def mcts_search(self, game_state, candidate_orders, sims_per_plan):
         if not candidate_orders:
@@ -305,7 +305,7 @@ class StudentAgent(Agent):
                 if plan and plan not in candidate_orders:
                     candidate_orders.append(plan)
 
-            print(time.perf_counter() - start_time, self.game.phase_type)
+            print(time.perf_counter() - start_time, self.game.phase)
             return self.mcts_search(self.game, candidate_orders, sims_per_plan=3)
 
         '''
