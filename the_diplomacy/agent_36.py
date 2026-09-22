@@ -1,7 +1,7 @@
 # ============================================================
 # CITS3011 Project — Group 36
 # Agent: StudentAgent
-# beta_base_v1.3_safe  (final base)
+# beta_base_v1.3_safe  (current base)
 #
 # ALGORITHM FLOW
 # ---------------
