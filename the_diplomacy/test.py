@@ -9,6 +9,7 @@ from agent_36 import StudentAgent
 # This file provides examples for you to test the performance of your agents. The testing code may be different during the marking.
 
 ALL_POWERS = ['AUSTRIA', 'ENGLAND', 'FRANCE', 'GERMANY', 'ITALY', 'RUSSIA', 'TURKEY']
+TEST_POWERS = ['ENGLAND']
 
 def scoring(centres):
     scores = {k: min(v, 18) for k, v in centres.items()}
@@ -66,7 +67,7 @@ def experiment(player_agent, opponent_agent_pool, repeat_nums=10):
 if __name__ == "__main__":
 
     print('Evaluating Scenario 1 ...')
-    experiment(player_agent=StudentAgent, opponent_agent_pool=[StaticAgent], repeat_nums=10)
+    experiment(player_agent=StudentAgent, opponent_agent_pool=[StaticAgent], repeat_nums=50)
 
-    print('Evaluating Scenario 2 ...')
-    experiment(player_agent=StudentAgent, opponent_agent_pool=[RandomAgent, AttitudeAgent, AttitudeAgent, GreedyAgent, GreedyAgent], repeat_nums=10)
+    #print('Evaluating Scenario 2 ...')
+    #experiment(player_agent=StudentAgent, opponent_agent_pool=[RandomAgent, AttitudeAgent, AttitudeAgent, GreedyAgent, GreedyAgent], repeat_nums=10)
