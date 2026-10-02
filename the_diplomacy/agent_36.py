@@ -28,7 +28,7 @@ class StudentAgent(Agent):
     You can add/override attributes and methods as needed.
     '''
     #random funcs
-    def get_loc_neighbors(self, loc): #quick note: this is building a graph regardless of unit type, is causing bugs down there will work on this later
+    def get_loc_neighbors(self, loc): 
         neighbors = set()
         loc_upper = loc.upper()
         if loc_upper in self.map_graph_army:
@@ -37,7 +37,7 @@ class StudentAgent(Agent):
             neighbors.update(self.map_graph_navy.neighbors(loc_upper))
         return neighbors
 
-    def get_units_neighbors(self, loc): #graph for different unit types, still buggy tho since there r certain adjacent coastal nodes fleets cant actually move betweek (VEN-ROM) VERY PROBLEMATIC FOR ITALY
+    def get_units_neighbors(self, loc):
         army = self.power.units
         neighbors = set()
         loc_upper = loc.upper()
@@ -55,7 +55,7 @@ class StudentAgent(Agent):
                 neighbors.update(self.map_graph_army.neighbors(loc_upper))
         return (neighbors, type)
 
-    def get_furthest_neighbor(self, game_state, loc_neighbors, loc_type): #use nx graph to find the furthest unweighted loc from base -> u wanna extend there instead of going backwards
+    def get_furthest_neighbor(self, game_state, loc_neighbors, loc_type): #neighbour furthest from home
         army = self.power.units
         my_home = self.power.homes
         game_map = game_state.map
@@ -95,7 +95,7 @@ class StudentAgent(Agent):
                     furthest_dist = min_dist_from_home
         return best_neighbor
     
-    def get_target(self, str): #just a func to get the target loc of a move 
+    def get_target(self, str): #destination of a move order
         move = str.split(' ')
         if '-' in move:
             return move[move.index('-') + 1]
@@ -128,7 +128,7 @@ class StudentAgent(Agent):
         self.greedy_agent.map_graph_army = self.map_graph_army
         self.greedy_agent.map_graph_navy = self.map_graph_navy
 
-    def brexit(self, game_state, loc): #find all possible convoys out of britain
+    def brexit(self, game_state, loc): # shortest convoy path out of Britain
         my_units = game_state.get_orderable_locations(self.power_name)
         final_dest = None
         fleet_num = 99
@@ -162,16 +162,15 @@ class StudentAgent(Agent):
         scored_pairs = []
         for pairs in pairs_list:
             pair_score = 0.0
-            #this is the most useless province in the whole game, pls dont go here
+            #this is the most useless province in the whole game, should never go to there
             if pairs[0] == "SYR" or pairs[1] == "SYR":
                 pair_score -= 10000000000000.0
-            #if ur gonna attack 2 targets next to each other, just attack 1 bro
+            #if plan to attack 2 targets next to each other, just attack 1
             if pairs[0] in self.get_units_neighbors(pairs[1])[0]:
                 pair_score += -100.0
             #extend, dont waste time attacking our own provinces
             if pairs[0] in influence or pairs[1] in influence:
                 pair_score += -50000.0
-            #everything else should be self-explainatory
             pair_score -= 1000**(self.target_history.count(pairs))  
             pair_score += len(self.get_units_neighbors(pairs[0])[0] & my_units) * 50
             pair_score += len(self.get_units_neighbors(pairs[1])[0] & my_units) * 20
@@ -187,7 +186,7 @@ class StudentAgent(Agent):
         scored_pairs.sort(key =lambda x: x[0], reverse= True)
         return [pair for (pair_score, pair) in scored_pairs[:pairs_num]]
 
-    def evaluate(self, game_state):    #heuristic? to evaluate board positions
+    def evaluate(self, game_state):    #heuristic board evaluation
         game_map = game_state.map    
         my_scs = set(game_state.get_centers(self.power_name))
         enemy_scs = set(game_map.scs) - my_scs
@@ -283,7 +282,6 @@ class StudentAgent(Agent):
                             if self.get_target(order) == target_loc and ' S ' not in order and ' C ' not in order:
                                 attackers.append((loc, order))
                 #select a primary attacker
-                # WHY IS THIS ATTACKER LIST ALWAYS EMPTY SOME1 PLS HELP ITS 2AM oh yay it took me a day i got it now
                 if attackers:
                     # convoy_attacks = [a for a in attackers if 'VIA' in a[1]]            
                     # normal_attacks = [a for a in attackers if 'VIA' not in a[1]]
@@ -322,7 +320,7 @@ class StudentAgent(Agent):
                                 assigned_units.add(loc)
                             
 
-        #case: hold; for the moment, all remaining troops just hold lol im losing my sanity
+        #case: hold; for the moment, all remaining troops just hold
         #now will move to nearby unoccupied scs, then neighboring tile to target
         common_target = set()
         convoy_target = set()
@@ -340,7 +338,7 @@ class StudentAgent(Agent):
                 target = []
                 primary_order = []
                 
-                #gtfo of britain
+                #convoy English armies off Britain
                 if loc in ["LON", 'EDI', 'YOR', 'WAL'] and self.power_name == "ENGLAND" and not brexited and type == 'A':
                     if game_state.convoy_paths_dest.get(loc):
                         dest, fleets_req = self.brexit(game_state, loc)
@@ -350,7 +348,7 @@ class StudentAgent(Agent):
                         brexited = True
                         assigned_units.add(loc)
                         continue
-                #make sure there r convoys
+                #make sure there are convoys
                 elif convoy_target and loc in fleets_req:
                     final_orders.append(f'F {loc} C {convoy_path}') 
                     assigned_units.add(loc)           
@@ -435,11 +433,11 @@ class StudentAgent(Agent):
         attack_pool = cleaned_attack_targets - influence
         targets = list(attack_pool)
         defense_pool = list(defense_targets)
-        #combine to make a 2d list (its a duo mcts)
+        #form all target pairs
         mult_attack_pool = [list(plan) for plan in itertools.combinations(targets, 2)]
         candidate_targets = self.evaluate_pairs(game_state, mult_attack_pool, num_targets)
 
-        #solely taking attacking locs tho -> extremely greedy
+        #only attacking targets considered
         if not attack_pool:
             return []
 
@@ -460,8 +458,7 @@ class StudentAgent(Agent):
         #             if len(candidate_targets) >= num_targets:
         #                 break
         return candidate_targets
-
-    #NOTICE! CURRENTLY USING GREEDY BASELINE AGENT TO SIM OPPONENTS. NEED TO CHECK IF THIS IS ALLOWED        
+       
     def get_action_opp(self, game_state, opp_power):
         orders_history = game_state.order_history.get('S1901M', {})
         if orders_history is None:
@@ -477,7 +474,7 @@ class StudentAgent(Agent):
 
     #base mcts search, depth 1
     def mcts_search(self, game_state, candidate, sims_per_plan):
-        if not candidate:   #this should NEVER be used pls 
+        if not candidate:   #should not occur in normal play
             my_units = game_state.get_orderable_locations(self.power_name)
             possible_orders = game_state.get_all_possible_orders()
             return [possible_orders[loc][0] for loc in my_units if possible_orders.get(loc)]
