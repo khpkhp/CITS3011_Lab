@@ -55,7 +55,7 @@ class StudentAgent(Agent):
                 neighbors.update(self.map_graph_army.neighbors(loc_upper))
         return (neighbors, type)
 
-    def get_furthest_neighbor(self, game_state, loc_neighbors, loc_type):
+    def get_furthest_neighbor(self, game_state, loc_neighbors, loc_type): #use nx graph to find the furthest unweighted loc from base -> u wanna extend there instead of going backwards
         army = self.power.units
         my_home = self.power.homes
         game_map = game_state.map
@@ -128,7 +128,7 @@ class StudentAgent(Agent):
         self.greedy_agent.map_graph_army = self.map_graph_army
         self.greedy_agent.map_graph_navy = self.map_graph_navy
 
-    def brexit(self, game_state, loc):
+    def brexit(self, game_state, loc): #find all possible convoys out of britain
         my_units = game_state.get_orderable_locations(self.power_name)
         final_dest = None
         fleet_num = 99
@@ -350,6 +350,7 @@ class StudentAgent(Agent):
                         brexited = True
                         assigned_units.add(loc)
                         continue
+                #make sure there r convoys
                 elif convoy_target and loc in fleets_req:
                     final_orders.append(f'F {loc} C {convoy_path}') 
                     assigned_units.add(loc)           
@@ -368,9 +369,9 @@ class StudentAgent(Agent):
                         if ' S ' not in order and f' - {target[0]}' in order:
                             primary_order.append(order)
                             break
-                elif self.power_name == "ENGLAND" and (loc == "ENG" or loc == "NTH"):
+                elif self.power_name == "ENGLAND" and (loc == "ENG" or loc == "NTH"): #keep fleets in eng/nth for convoys
                     pass
-                #priority list for attacks: unoccupied scs -> occupied scs -> nearby units
+                #priority list for attacks: stay in scs -> unoccupied scs -> occupied scs -> nearby units
                 elif loc in enemy_scs:
                     assigned_units.add(loc)
                     continue
@@ -384,7 +385,7 @@ class StudentAgent(Agent):
                     target.append(random.choice(list(target2_loc_neighbor & loc_neighbors)))    
                 elif loc_neighbors:
                     # target.append(random.choice(list(loc_neighbors)))
-                    target.append(self.get_furthest_neighbor(game_state, loc_neighbors, type))                
+                    target.append(self.get_furthest_neighbor(game_state, loc_neighbors, type))     #expand further from the base, doesnt work w england tho           
 
                 if target or primary_order:
                     if target:
@@ -526,8 +527,8 @@ class StudentAgent(Agent):
                     candidate_orders = [(list(plan), "empty") for plan in itertools.product(*options_per_loc)]
 
             elif self.power_name == "ITALY": 
-                if self.game.phase_type == 'A' and self.army_num <= 4:
-                    options_per_loc = [[order for order in possible_orders[loc] if order.startswith('A')] for loc in my_locs if possible_orders.get(loc)]
+                if self.game.phase_type == 'A' and self.navy_num <= 3:
+                    options_per_loc = [[order for order in possible_orders[loc] if order.startswith('F')] for loc in my_locs if possible_orders.get(loc)]
                 else:
                     options_per_loc = [possible_orders[loc] for loc in my_locs if possible_orders.get(loc)]
 
@@ -545,14 +546,15 @@ class StudentAgent(Agent):
             #mcts and evaluate
             #print(time.perf_counter() - start_time, self.game.phase_type)
             return self.mcts_search(game_state, candidate_orders, sims_per_plan=1)
+        #pre-move for certain powers
         elif self.power_name == "ENGLAND" and game_state.phase == "SPRING 1901 MOVEMENT":
             return ['F EDI - NWG', 'F LON - NTH', 'A LVP - EDI']
         elif self.power_name == "ENGLAND" and game_state.phase == "FALL 1901 MOVEMENT":
             return ['F NTH - HOL', 'F NWG C A EDI - NWY', 'A EDI - NWY VIA']
         elif self.power_name == "ITALY" and game_state.phase == "SPRING 1901 MOVEMENT":
             return ['F NAP - ION', 'A VEN - TYR', 'A ROM - VEN']
-        elif self.power_name == "ITALY" and game_state.phase == "FALL 1901 MOVEMENT":
-            return ['F ION - GRE', 'A VEN - TRI', 'A TYR S A VEN - TRI']
+        # elif self.power_name == "ITALY" and game_state.phase == "FALL 1901 MOVEMENT":
+        #     return ['F ION - TUN', 'A VEN - TRI', 'A TYR S A VEN - TRI']
         elif self.power_name == "FRANCE" and game_state.phase == "SPRING 1901 MOVEMENT":
             return ['F BRE - MAO', 'A PAR - PIC', 'A MAR H']
         elif self.power_name == "FRANCE" and game_state.phase == "FALL 1901 MOVEMENT":
