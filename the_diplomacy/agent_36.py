@@ -283,7 +283,7 @@ class StudentAgent(Agent):
                             if self.get_target(order) == target_loc and ' S ' not in order and ' C ' not in order:
                                 attackers.append((loc, order))
                 #select a primary attacker
-                #FUCK WHY IS THIS ATTACKER LIST ALWAYS EMPTY SOME1 PLS FUCKING HELP ITS 2AM oh shit it took me a day i got it now
+                # WHY IS THIS ATTACKER LIST ALWAYS EMPTY SOME1 PLS HELP ITS 2AM oh yay it took me a day i got it now
                 if attackers:
                     # convoy_attacks = [a for a in attackers if 'VIA' in a[1]]            
                     # normal_attacks = [a for a in attackers if 'VIA' not in a[1]]
